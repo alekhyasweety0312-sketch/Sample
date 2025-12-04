@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Happy 26 — Gift Boxes</title>
+<style>
+  :root{
+    --bg:#fbf7ff;--card:#fff;--muted:#6b7280;--accent:#7c3aed;
+    --box1:#ffd6a5;--box2:#cfe9ff;--bow1:#ff6b6b;--bow2:#7c3aed;
+    --shadow: 0 10px 30px rgba(16,24,40,0.12);
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:linear-gradient(180deg,#fff,#f3f0ff);color:#111;min-height:100vh}
+  .wrap{max-width:1100px;margin:18px auto;padding:18px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  h1{margin:0;font-size:28px}
+  .note{color:var(--muted);font-size:13px}
+  .btn{padding:10px 14px;border-radius:12px;border:0;background:var(--accent);color:#fff;cursor:pointer;font-weight:600;box-shadow:var(--shadow)}
+  .ghost{background:transparent;border:1px solid rgba(0,0,0,0.06);color:#111}
+  .hint{color:var(--muted);margin-top:6px}
+  /* pages */
+  .page{display:none}
+  .page.active{display:block}
+  /* grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:16px;margin-top:18px}
+  .box-wrap{perspective:900px;position:relative}
+  .box{
+    height:130px;border-radius:14px;display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;
+    box-shadow:var(--shadow);overflow:visible;transition:transform .2s ease, box-shadow .2s ease;
+    background:linear-gradient(180deg,var(--box1),#ffd0a0);
+  }
+  .box.alt{background:linear-gradient(180deg,var(--box2),#d9edff)}
+  .box:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(16,24,40,0.18)}
+  /* bow svg */
+  .bow-svg{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:74px;height:36px;z-index:8;pointer-events:none;filter:drop-shadow(0 8px 12px rgba(0,0,0,0.08))}
+  /* ribbon wobble */
+  .ribbon{transform-origin:center;animation:idleWobble 3s infinite ease-in-out}
+  .box:hover .ribbon{animation:wobble 0.7s ease-in-out}
+  @keyframes wobble{0%{transform:rotate(0)}25%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-3deg)}100%{transform:rotate(0)}}
+  @keyframes idleWobble{0%{transform:rotate(0)}50%{transform:rotate(2deg)}100%{transform:rotate(0)}}
+  /* lid animation */
+  .lid{position:absolute;inset:0;border-radius:14px;z-index:6;transform-origin:50% 0%;transition:transform .6s cubic-bezier(.2,.9,.3,1)}
+  .box.opening .lid{transform:rotateX(-110deg) translateY(-14px);box-shadow:none}
+  .content{
+    position:absolute;inset:10px;border-radius:10px;padding:10px;background:rgba(255,255,255,0.96);z-index:4;opacity:0;transform:translateY(8px) scale(.98);
+    transition:all .28s ease;display:flex;flex-direction:column;gap:6px;align-items:flex-start;font-size:13px;overflow:auto;
+  }
+  .box.opening .content{opacity:1;transform:translateY(0) scale(1)}
+  .small-title{font-weight:700;font-size:14px;color:#111}
+  .small-body{white-space:pre-wrap;color:#333;font-size:13px}
+  /* inline editor */
+  .editor-inline{position:absolute;left:12px;bottom:-230px;width:calc(100% - 24px);z-index:60}
+  .editor{display:flex;flex-direction:column;gap:8px;background:white;padding:10px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.12)}
+  input,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e6ef}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .small{padding:8px 10px;border-radius:8px;border:0;cursor:pointer;background:#111;color:#fff}
+  /* final */
+  .final{padding:28px;border-radius:12px;background:linear-gradient(180deg,#fff,#fffbf0);box-shadow:var(--shadow);text-align:center}
+  .final h2{font-size:24px;margin:0 0 12px}
+  .final p{color:#333;font-size:16px;line-height:1.4}
+  /* modals */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;padding:12px;z-index:120;display:none}
+  .overlay.open{display:flex}
+  .modal{background:white;padding:16px;border-radius:12px;max-width:420px;width:100%}
+  .field{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .small-muted{font-size:13px;color:var(--muted)}
+  /* confetti canvas */
+  canvas#confettiCanvas{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:200}
+  @media(max-width:720px){ .box{height:110px} .bow-svg{width:64px;height:32px} .editor-inline{bottom:-200px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Happy 26 🎉</h1>
+      <div class="note">A tiny surprise — 26 little boxes, one message in each</div>
+    </div>
+    <div id="topActions">
+      <button id="startBtn" class="btn">Open your gift</button>
+    </div>
+  </header>
+
+  <div class="hint" id="hint"></div>
+
+  <!-- Gallery page -->
+  <main id="galleryPage" class="page">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px">
+      <div style="font-weight:700">Tap a box to open it</div>
+      <div style="display:flex;gap:8px">
+        <button id="createLink" class="btn">Create shareable link</button>
+        <button id="downloadJson" class="btn ghost">Download JSON</button>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div style="display:flex;justify-content:center;margin-top:16px">
+      <button id="toFinal" class="btn" style="display:none">Next → Final message</button>
+    </div>
+
+    <footer>Tip: Click each box, write a small message and save. When you are done, create a share link.</footer>
+  </main>
+
+  <!-- Final page -->
+  <section id="finalPage" class="page">
+    <div class="final" style="margin-top:18px">
+      <h2>You set the bar too high</h2>
+      <p>You set the bar too high, hope u liked these Little things. Have the happiest Birthdayyy ever.....</p>
+      <div style="margin-top:16px"><button id="restart" class="btn">Back to start</button></div>
+    </div>
+  </section>
+</div>
+
+<!-- PIN modal -->
+<div class="overlay" id="pinOverlay">
+  <div class="modal">
+    <h3 id="pinTitle">Welcome</h3>
+    <div class="small-muted" id="pinHint">Set a 4-digit PIN to lock this surprise (optional).</div>
+    <div class="field">
+      <input id="pinInput" placeholder="Enter 4-digit PIN or leave blank to skip" inputmode="numeric" maxlength="6" />
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="pinSave" class="btn">Save & Continue</button>
+      <button id="pinSkip" class="btn ghost">Skip</button>
+    </div>
+    <div style="margin-top:10px" class="small-muted">If a PIN is set, you (or the recipient) must enter it to open the boxes later.</div>
+  </div>
+</div>
+
+<!-- confetti canvas -->
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+(function(){
+  const COUNT = 26;
+  const KEY = 'boxes_26_messages_v3';
+  const PIN_KEY = 'boxes_26_pin_v3';
+  const grid = document.getElementById('grid');
+  const galleryPage = document.getElementById('galleryPage');
+  const finalPage = document.getElementById('finalPage');
+  const startBtn = document.getElementById('startBtn');
+  const hintEl = document.getElementById('hint');
+  const createLinkBtn = document.getElementById('createLink');
+  const downloadJsonBtn = document.getElementById('downloadJson');
+  const toFinalBtn = document.getElementById('toFinal');
+  const restartBtn = document.getElementById('restart');
+  const pinOverlay = document.getElementById('pinOverlay');
+  const pinInput = document.getElementById('pinInput');
+  const pinSave = document.getElementById('pinSave');
+  const pinSkip = document.getElementById('pinSkip');
+  const pinTitle = document.getElementById('pinTitle');
+  const pinHint = document.getElementById('pinHint');
+
+  const confettiCanvas = document.getElementById('confettiCanvas');
+  const ctx = confettiCanvas.getContext('2d');
+
+  let messages = Array.from({length:COUNT}).map(()=>({title:'',body:'',opened:false}));
+  let openedCount = 0;
+  let pinRequired = false;
+
+  // -------- storage & load ----------
+  function load(){
+    // url param
+    try{
+      const p = new URLSearchParams(window.location.search);
+      const encoded = p.get('m');
+      if(encoded){
+        const decoded = decodeURIComponent(atob(encoded));
+        const parsed = JSON.parse(decoded);
+        if(Array.isArray(parsed) && parsed.length===COUNT){
+          messages = parsed;
+          hint('Loaded messages from shared link');
+          return;
+        }
+      }
+    }catch(e){}
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){ const parsed = JSON.parse(raw); if(Array.isArray(parsed) && parsed.length===COUNT) messages = parsed; }
+    }catch(e){}
+    try{
+      const p = localStorage.getItem(PIN_KEY);
+      if(p) pinRequired = true;
+    }catch(e){}
+  }
+
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(messages)); }catch(e){}
+  }
+
+  function setPin(val){
+    try{ localStorage.setItem(PIN_KEY, val); pinRequired = !!val; }catch(e){}
+  }
+  function getPin(){ try{ return localStorage.getItem(PIN_KEY)||'' }catch(e){return ''} }
+
+  // ---------- UI helpers --------------
+  function hint(text, ttl=2500){ hintEl.textContent = text; setTimeout(()=>{ if(hintEl.textContent===text) hintEl.textContent=''; }, ttl); }
+
+  // ---------- confetti ----------
+  let confettiPieces = [];
+  function resizeCanvas(){ confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+  window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+  function spawnConfetti(x=window.innerWidth/2, y=window.innerHeight/3, count=30){
+    for(let i=0;i<count;i++){
+      confettiPieces.push({
+        x: x + (Math.random()-0.5)*200,
+        y: y + (Math.random()-0.5)*80,
+        vx: (Math.random()-0.5)*6,
+        vy: Math.random()*-6 - 2,
+        r: 6 + Math.random()*8,
+        color: ['#ff6b6b','#ffbe76','#7c3aed','#34d399','#60a5fa'][Math.floor(Math.random()*5)],
+        rot: Math.random()*360,
+        vr: (Math.random()-0.5)*10,
+        life: 0
+      });
+    }
+    requestAnimationFrame(confettiLoop);
+  }
+
+  function confettiLoop(){
+    ctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+    for(let i=confettiPieces.length-1;i>=0;i--){
+      const p = confettiPieces[i];
+      p.vy += 0.25; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.6);
+      ctx.restore();
+      if(p.y > confettiCanvas.height + 50 || p.life>200) confettiPieces.splice(i,1);
+    }
+    if(confettiPieces.length>0) requestAnimationFrame(confettiLoop);
+  }
+
+  // --------- sound (WebAudio pop) ----------
+  const audioCtx = (window.AudioContext||window.webkitAudioContext) ? new (window.AudioContext||window.webkitAudioContext)() : null;
+  function playPop(){
+    if(!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(880 + Math.random()*200, audioCtx.currentTime);
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.7);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.8);
+  }
+
+  // ---------- render grid of boxes ----------
+  function renderGrid(){
+    grid.innerHTML = '';
+    openedCount = messages.filter(m=>m.opened).length;
+    for(let i=0;i<COUNT;i++){
+      const m = messages[i];
+      const wrap = document.createElement('div'); wrap.className='box-wrap';
+      const box = document.createElement('div'); box.className = 'box ' + ((i%2)?'alt':'');
+      box.dataset.index = i;
+
+      // lid (invisible element that rotates)
+      const lid = document.createElement('div'); lid.className='lid';
+      // bow svg
+      const bowSVG = createBowSVG(i%2===0? '--bow1':'--bow2' );
+      box.appendChild(bowSVG);
+      // content
+      const content = document.createElement('div'); content.className='content';
+      content.innerHTML = `<div class="small-title">${escapeHtml(m.title||'(untitled)')}</div><div class="small-body">${m.body?escapeHtml(m.body):'(empty)'}</div>`;
+      box.appendChild(lid);
+      box.appendChild(content);
+      wrap.appendChild(box);
+      grid.appendChild(wrap);
+
+      box.onclick = ()=>openBox(box, content, i);
+      if(m.opened) box.classList.add('opening');
+    }
+    toFinalBtn.style.display = (openedCount>=COUNT) ? 'inline-block' : 'none';
+  }
+
+  function createBowSVG(isAlt){
+    // make an inline svg element for a cute bow + ribbon
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns,'svg');
+    svg.setAttribute('viewBox','0 0 120 48');
+    svg.classList.add('bow-svg');
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="g1" x1="0" x2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0.2"></stop>
+          <stop offset="1" stop-color="#000" stop-opacity="0.02"></stop>
+        </linearGradient>
+      </defs>
+      <g class="ribbon">
+        <rect x="0" y="20" width="120" height="10" rx="4" fill="${isAlt==='--bow1'? 'var(--bow1)':'var(--bow2)'}" />
+        <g transform="translate(40,6)">
+          <ellipse cx="10" cy="16" rx="18" ry="12" fill="${isAlt==='--bow1'? 'var(--bow1)':'var(--bow2)'}" />
+          <ellipse cx="40" cy="16" rx="18" ry="12" fill="${isAlt==='--bow1'? 'var(--bow1)':'var(--bow2)'}" />
+          <rect x="12" y="10" width="16" height="12" rx="3" fill="#fff" opacity="0.06"/>
+        </g>
+      </g>
+    `;
+    return svg;
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function escapeAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // open a box
+  function openBox(boxEl, contentEl, idx){
+    // if PIN required, ask first
+    if(pinRequired && !verifiedPin){
+      requestPinThen(()=> animateOpen(boxEl, contentEl, idx));
+      return;
+    }
+    animateOpen(boxEl, contentEl, idx);
+  }
+
+  let verifiedPin = false;
+  function requestPinThen(cb){
+    pinTitle.textContent = 'Enter PIN';
+    pinHint.textContent = 'This surprise is protected. Enter the 4-digit PIN or cancel.';
+    pinInput.value = '';
+    pinOverlay.classList.add('open');
+    pinSave.onclick = ()=>{
+      const entered = pinInput.value.trim();
+      if(!entered){ hint('PIN required'); return; }
+      const saved = getPin();
+      if(entered === saved){ verifiedPin = true; pinOverlay.classList.remove('open'); hint('PIN verified'); cb(); }
+      else { alert('Incorrect PIN'); }
+    };
+    pinSkip.onclick = ()=>{ pinOverlay.classList.remove('open'); hint('PIN entry cancelled'); };
+  }
+
+  function animateOpen(boxEl, contentEl, idx){
+    boxEl.classList.add('opening');
+    // sound + confetti
+    // resume audio if needed (user gesture)
+    try{ audioCtx && audioCtx.resume(); }catch(e){}
+    playPop();
+    spawnConfetti(boxEl.getBoundingClientRect().left + boxEl.offsetWidth/2, boxEl.getBoundingClientRect().top + 40, 20);
+    // create inline editor for message
+    showEditor(boxEl, contentEl, idx);
+    if(!messages[idx].opened){
+      messages[idx].opened = true;
+      save();
+      setTimeout(()=>{ renderGrid(); hint('Saved opened state') }, 700);
+    }
+  }
+
+  function showEditor(boxEl, contentEl, idx){
+    // remove existing editor from this box
+    const existing = boxEl.querySelector('.editor-inline');
+    if(existing) existing.remove();
+    const editor = document.createElement('div'); editor.className='editor-inline';
+    editor.innerHTML = `
+      <div class="editor">
+        <input id="t${idx}" placeholder="Short title" value="${escapeAttr(messages[idx].title)}" />
+        <textarea id="b${idx}" rows="4" placeholder="Write your message...">${escapeAttr(messages[idx].body)}</textarea>
+        <div class="controls">
+          <button class="btn" id="save${idx}">Save</button>
+          <button class="btn ghost" id="clear${idx}">Clear</button>
+        </div>
+      </div>
+    `;
+    boxEl.appendChild(editor);
+    boxEl.scrollIntoView({behavior:'smooth',block:'center'});
+
+    document.getElementById(`save${idx}`).onclick = ()=>{
+      const title = document.getElementById(`t${idx}`).value;
+      const body = document.getElementById(`b${idx}`).value;
+      messages[idx].title = title;
+      messages[idx].body = body;
+      messages[idx].opened = true;
+      save();
+      contentEl.innerHTML = `<div class="small-title">${escapeHtml(title||'(untitled)')}</div><div class="small-body">${escapeHtml(body||'(empty)')}</div>`;
+      editor.remove(); hint('Message saved'); renderGrid();
+    };
+
+    document.getElementById(`clear${idx}`).onclick = ()=>{
+      if(!confirm('Clear this message?')) return;
+      messages[idx] = {title:'',body:'',opened:true};
+      save(); editor.remove(); renderGrid(); hint('Cleared');
+    };
+  }
+
+  // share / download
+  createLinkBtn.onclick = ()=>{
+    try{
+      const encoded = btoa(encodeURIComponent(JSON.stringify(messages)));
+      const url = window.location.origin + window.location.pathname + '?m=' + encoded;
+      navigator.clipboard?.writeText(url).catch(()=>{});
+      hint('Share link copied to clipboard');
+      setTimeout(()=>{ window.open(url,'_blank') },100);
+    }catch(e){ hint('Failed to create link'); }
+  };
+  downloadJsonBtn.onclick = ()=>{
+    const blob = new Blob([JSON.stringify(messages,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='26-boxes-messages.json'; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  // page nav
+  startBtn.onclick = ()=>{
+    // show PIN prompt if pin exists
+    const savedPin = getPin();
+    if(savedPin){
+      pinTitle.textContent = 'Enter PIN';
+      pinHint.textContent = 'Enter the 4-digit PIN to proceed.';
+      pinInput.value = '';
+      pinOverlay.classList.add('open');
+      pinSave.onclick = ()=>{
+        if(pinInput.value.trim() === savedPin){ verifiedPin = true; pinOverlay.classList.remove('open'); showPage('gallery'); renderGrid(); }
+        else { alert('Incorrect PIN'); }
+      };
+      pinSkip.onclick = ()=>{ pinOverlay.classList.remove('open'); hint('Access cancelled'); };
+    } else {
+      // allow user to set PIN now or skip
+      pinTitle.textContent = 'Set a PIN (optional)';
+      pinHint.textContent = 'Set a 4-digit PIN to lock the surprise or skip to continue.';
+      pinInput.value = '';
+      pinOverlay.classList.add('open');
+      pinSave.onclick = ()=>{ const v = pinInput.value.trim(); if(v && v.length<3){ alert('Choose at least 3 digits'); return; } setPin(v); pinOverlay.classList.remove('open'); showPage('gallery'); renderGrid(); hint('PIN saved'); };
+      pinSkip.onclick = ()=>{ pinOverlay.classList.remove('open'); showPage('gallery'); renderGrid(); hint('Skipped PIN'); };
+    }
+  };
+
+  function showPage(which){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    if(which==='gallery'){ galleryPage.classList.add('active'); renderGrid(); }
+    if(which==='final'){ finalPage.classList.add('active'); }
+    // hide top start actions
+    document.querySelector('#topActions').style.display = which==='gallery' ? 'none' : 'block';
+  }
+
+  toFinalBtn.onclick = ()=> showPage('final');
+  restartBtn.onclick = ()=> { document.querySelector('#topActions').style.display='block'; document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); hint('Back to start'); };
+
+  // update next button visibility
+  function updateNextButton(){ openedCount = messages.filter(m=>m.opened).length; toFinalBtn.style.display = (openedCount>=COUNT) ? 'inline-block' : 'none'; }
+
+  // initial load
+  load();
+  const any = messages.some(m=>m.title||m.body);
+  if(any){ document.querySelector('#topActions').style.display='none'; showPage('gallery'); } // if messages exist, open gallery
+  else { /* show splash */ }
+
+  setInterval(updateNextButton, 600);
+
+  // ---------- confetti spawn helper exposed earlier ----------
+  function spawnConfetti(x=window.innerWidth/2, y=window.innerHeight/3, count=30){
+    for(let i=0;i<count;i++){
+      confettiPieces.push({
+        x: x + (Math.random()-0.5)*200,
+        y: y + (Math.random()-0.5)*80,
+        vx: (Math.random()-0.5)*6,
+        vy: Math.random()*-6 - 2,
+        r: 6 + Math.random()*8,
+        color: ['#ff6b6b','#ffbe76','#7c3aed','#34d399','#60a5fa'][Math.floor(Math.random()*5)],
+        rot: Math.random()*360,
+        vr: (Math.random()-0.5)*10,
+        life: 0
+      });
+    }
+    requestAnimationFrame(confettiLoop);
+  }
+
+  // confetti loop reused from earlier
+  let confettiPieces = [];
+  function confettiLoop(){
+    ctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+    for(let i=confettiPieces.length-1;i>=0;i--){
+      const p = confettiPieces[i];
+      p.vy += 0.25; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r*0.6);
+      ctx.restore();
+      if(p.y > confettiCanvas.height + 50 || p.life>200) confettiPieces.splice(i,1);
+    }
+    if(confettiPieces.length>0) requestAnimationFrame(confettiLoop);
+  }
+
+  // sound helper
+  const audioCtx = (window.AudioContext||window.webkitAudioContext) ? new (window.AudioContext||window.webkitAudioContext)() : null;
+  function playPop(){
+    if(!audioCtx) return;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880 + Math.random()*200, audioCtx.currentTime);
+    g.gain.setValueAtTime(0, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.001);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.8);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.8);
+  }
+
+  // ensure canvas size ready
+  function resizeCanvas(){ confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+  window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+  // Expose simple debug
+  window._boxesApp = { messages, save, spawnConfetti };
+
+})();
+</script>
+</body>
+</html>
