@@ -1,2 +1,2 @@
-# Sample
-Birthday greetings
+# Sample 
+Rebuild pages
